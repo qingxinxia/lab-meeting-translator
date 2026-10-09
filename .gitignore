@@ -1,0 +1,47 @@
+# Credentials: only the empty template is versioned.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+secrets*.json
+
+# Local meeting data, databases, backups, uploads and diagnostic reports.
+/data/
+/debug_artifacts/
+/uploads/
+/exports/
+/recordings/
+/backups/
+*.sqlite*
+*.db
+*.db-*
+*.wav
+*.mp3
+*.m4a
+*.aiff
+*.aif
+*.pcm
+*.webm
+*.mp4
+*.heic
+*.HEIC
+*.heif
+*.HEIF
+*_REPORT.md
+/CHECKPOINT.md
+*.log
+
+# Local runtime/editor files.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage*
+htmlcov/
+node_modules/
+.idea/
+.vscode/
+.DS_Store

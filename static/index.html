@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>LiveBridge · 会议翻译</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0e14;
+      --panel: #141923;
+      --line: rgba(255,255,255,.09);
+      --muted: #98a2b3;
+      --text: #f4f6fb;
+      --accent: #7c6df2;
+      --accent-2: #9f94ff;
+      --green: #40c993;
+      --red: #f05d6c;
+      --shadow: 0 22px 60px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      color: var(--text);
+      background: var(--bg);
+      font: 14px/1.5 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, select { font: inherit; }
+    button { color: inherit; }
+    .app { height: 100%; display: grid; grid-template-rows: 64px minmax(0,1fr) 90px; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; border-bottom: 1px solid var(--line); background: rgba(11,14,20,.86);
+      backdrop-filter: blur(18px); z-index: 4;
+    }
+    .brand, .meeting-meta, .status, .top-actions { display: flex; align-items: center; }
+    .brand { gap: 11px; font-weight: 720; letter-spacing: -.01em; }
+    .logo {
+      width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center;
+      background: linear-gradient(145deg,var(--accent-2),var(--accent)); box-shadow: 0 8px 22px rgba(124,109,242,.34);
+    }
+    .logo svg { width: 18px; }
+    .divider { width: 1px; height: 24px; background: var(--line); margin: 0 17px; }
+    .meeting-meta { color: var(--muted); gap: 10px; font-size: 13px; }
+    .meeting-title { color: var(--text); font-weight: 620; }
+    .status { gap: 8px; color: var(--muted); font-size: 13px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #596273; }
+    .status.connecting .status-dot { background: #e9b949; animation:pulse 1.1s infinite; }
+    .status.live .status-dot { background: var(--green); box-shadow: 0 0 0 5px rgba(64,201,147,.1); }
+    .status.error .status-dot { background: var(--red); }
+    .top-actions { gap: 8px; }
+    .ghost-btn {
+      border: 1px solid var(--line); background: rgba(255,255,255,.035); padding: 8px 12px;
+      border-radius: 9px; cursor: pointer; color: #c7ced9;
+    }
+    .ghost-btn:hover { background: rgba(255,255,255,.07); }
+    .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0,1fr) 390px; }
+    .audio-bars { display: inline-flex; align-items: end; gap: 2px; height: 13px; margin-right: 6px; }
+    .audio-bars i { width: 2px; height: 4px; background: var(--green); border-radius: 2px; }
+    .live .audio-bars i:nth-child(2) { height: 9px; animation: level .7s ease-in-out infinite alternate; }
+    .live .audio-bars i:nth-child(3) { height: 12px; animation: level .5s ease-in-out infinite alternate-reverse; }
+    .mic-meter { width:54px; height:5px; overflow:hidden; border-radius:5px; background:rgba(255,255,255,.13); }
+    .mic-meter > i { display:block; width:100%; height:100%; border-radius:inherit; background:var(--green); transform:scaleX(0); transform-origin:left center; transition:transform .1s linear; will-change:transform; }
+    @keyframes level { to { height: 4px; } }
+    .transcript-panel {
+      min-width: 0; display: grid; grid-template-rows: auto auto minmax(0,1fr); border-left: 1px solid var(--line); background: var(--panel);
+    }
+    .panel-head { display:flex; align-items:center; justify-content:space-between; padding: 19px 20px 13px; }
+    .panel-head h2 { margin:0; font-size:16px; letter-spacing:-.01em; }
+    .panel-head p { margin:3px 0 0; color:var(--muted); font-size:12px; }
+    .live-card { margin: 0 14px 10px; border: 1px solid rgba(124,109,242,.26); border-radius: 13px; background: rgba(124,109,242,.075); overflow:hidden; }
+    .live-label { display:flex; align-items:center; gap:7px; padding:9px 12px; color:var(--accent-2); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; border-bottom:1px solid rgba(124,109,242,.16); }
+    .live-pulse { width:6px; height:6px; border-radius:50%; background:var(--accent-2); animation:pulse 1.4s infinite; }
+    @keyframes pulse { 50% { opacity:.3; transform:scale(.8); } }
+    .live-copy { padding:11px 12px 13px; }
+    .live-translation { min-height:24px; font-size:15px; font-weight:620; }
+    .live-source { min-height:18px; margin-top:5px; color:var(--muted); font-size:12px; }
+    .diagnostic { min-height:18px; margin-top:7px; color:#778296; font-size:11px; }
+    .diagnostic.warn { color:#e9b949; }
+    .diagnostic.error { color:#ff929d; }
+    .transcript-list { overflow:auto; padding: 2px 16px 26px; scroll-behavior:smooth; }
+    .empty-state { color:#737d8d; text-align:center; padding:54px 24px; }
+    .empty-icon { width:46px; height:46px; margin:0 auto 13px; border-radius:14px; display:grid; place-items:center; background:rgba(255,255,255,.04); font-size:20px; }
+    .segment { display:grid; grid-template-columns:34px minmax(0,1fr); gap:10px; padding:14px 3px; border-bottom:1px solid var(--line); }
+    .segment-avatar { width:30px; height:30px; display:grid; place-items:center; border-radius:9px; background:#5f54bd; font-size:11px; font-weight:700; }
+    .segment-meta { display:flex; justify-content:space-between; margin-bottom:5px; color:var(--muted); font-size:11px; }
+    .segment-translation { color:#eef0f5; line-height:1.55; }
+    .segment-source { margin-top:5px; color:#8f99a8; font-size:12px; line-height:1.5; }
+    .controlbar {
+      position:relative; display:flex; align-items:center; justify-content:center; gap:12px; border-top:1px solid var(--line); background:#10141c;
+    }
+    .controls { display:flex; align-items:center; gap:9px; }
+    .control { display:grid; justify-items:center; gap:5px; min-width:58px; color:#aeb7c5; font-size:11px; cursor:pointer; user-select:none; background:none; border:0; padding:0; }
+    .control .circle {
+      width:44px; height:44px; display:grid; place-items:center; border-radius:50%; border:1px solid var(--line); background:#222936;
+      transition:.18s ease;
+    }
+    .control:hover .circle { background:#2b3342; transform:translateY(-1px); }
+    .control.active .circle { background:#eceafc; color:#302873; }
+    .control.off .circle { background:#5c2931; color:white; }
+    .control.end .circle { width:58px; border-radius:22px; border:0; background:var(--red); color:white; }
+    .control[aria-disabled="true"] { opacity:.38; pointer-events:none; }
+    .control svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .target-pill { position:absolute; left:23px; display:flex; align-items:center; gap:9px; color:var(--muted); font-size:12px; }
+    .target-pill strong { color:#d9dee7; font-weight:600; }
+    .prejoin {
+      position:fixed; z-index:10; inset:0; display:grid; place-items:center; padding:24px;
+      background:rgba(5,8,13,.68); backdrop-filter:blur(18px); transition:opacity .24s,visibility .24s;
+    }
+    .prejoin.closed { opacity:0; visibility:hidden; }
+    .join-card {
+      width:min(480px,100%); padding:30px; border:1px solid rgba(255,255,255,.12); border-radius:20px;
+      background:linear-gradient(155deg,rgba(31,37,50,.97),rgba(18,23,32,.97)); box-shadow:var(--shadow);
+    }
+    .join-card .logo { width:42px; height:42px; border-radius:13px; margin-bottom:20px; }
+    .join-card h1 { margin:0 0 8px; font-size:25px; letter-spacing:-.025em; }
+    .join-card .lead { margin:0 0 24px; color:var(--muted); }
+    .field { display:grid; gap:8px; margin-bottom:16px; }
+    .field label { color:#c8cfda; font-size:12px; font-weight:620; }
+    .field select {
+      width:100%; color:var(--text); background:#111620; border:1px solid var(--line); border-radius:10px; padding:12px 13px; outline:none;
+    }
+    .join-btn { width:100%; border:0; border-radius:11px; padding:13px; background:var(--accent); font-weight:700; cursor:pointer; box-shadow:0 10px 24px rgba(124,109,242,.25); color:white; }
+    .join-btn:hover { background:#897bf5; }
+    .join-btn:disabled { opacity:.55; cursor:wait; }
+    .privacy { display:flex; gap:9px; margin:17px 2px 0; color:#7f8998; font-size:11px; line-height:1.5; }
+    .error-box { display:none; margin:0 0 16px; padding:10px 12px; border-radius:9px; color:#ffbec4; background:rgba(240,93,108,.11); border:1px solid rgba(240,93,108,.2); font-size:12px; }
+    .error-box.show { display:block; }
+    .toast { position:fixed; z-index:20; top:76px; left:50%; transform:translate(-50%,-16px); padding:10px 14px; border-radius:10px; background:#252c39; box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:.22s; }
+    .toast.show { opacity:1; transform:translate(-50%,0); }
+    @media (max-width: 900px) {
+      .workspace { grid-template-columns:1fr; }
+      .transcript-panel { display:none; }
+      .target-pill { display:none; }
+      .meeting-meta .divider, .meeting-title { display:none; }
+    }
+    @media (max-width: 520px) {
+      .topbar { padding:0 14px; }
+      .control { min-width:51px; }
+      .control .label { display:none; }
+      .join-card { padding:24px; }
+    }
+    /* Transcript-first layout. */
+    .workspace { grid-template-columns:minmax(0,1fr) 290px; }
+    .transcript-panel { display:grid; min-height:0; border-left:0; background:var(--bg); }
+    .panel-head { padding:24px 36px 16px; }.panel-head h2 {font-size:22px;}
+    .eyebrow {color:var(--accent-2);font-size:11px;letter-spacing:.12em;margin-bottom:8px;}
+    .transcript-list {padding:0 36px 30px;scroll-behavior:auto;}.segment {display:block;padding:22px 0;overflow-wrap:anywhere;}.segment-meta {font-size:12px;margin-bottom:9px;}.segment-meta span {color:var(--accent-2);}.segment-translation {font-size:21px;line-height:1.7;white-space:pre-wrap;}.segment-source {font-size:15px;margin-top:10px;white-space:pre-wrap;}
+    .sidebar {padding:28px 22px;border-left:1px solid var(--line);background:var(--panel);overflow:auto;}.sidebar section {padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid var(--line);}.sidebar h2 {font-size:13px;color:var(--muted);margin:0 0 14px;}.sidebar p,.small {font-size:12px;color:var(--muted);}.topic-title {font-size:21px;font-weight:650;}.input-status {display:flex;align-items:center;gap:10px;margin:15px 0;}.input-status .mic-meter {width:100%;}#pipelineStats {margin-top:12px;line-height:1.9;}.diagnostic {font-size:13px;overflow-wrap:anywhere;}
+    .join-card {max-height:calc(100dvh - 40px);overflow:auto;width:min(520px,100%);}.check {font-size:13px;display:flex;align-items:flex-start;gap:8px;margin-bottom:20px;}.check small {display:block;color:var(--muted);margin-top:4px;}.check input {margin-top:4px;}
+    dialog {color:var(--text);background:#181f2d;border:1px solid #45506a;border-radius:16px;width:min(960px,95vw);padding:24px;max-height:90dvh;overflow:auto;}dialog::backdrop {background:#050811c9;backdrop-filter:blur(6px);}.dialog-head {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;}.dialog-head h2 {margin:0;font-size:20px;}.glossary-grid {display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;margin-top:20px;}.terms-list {max-height:48vh;overflow:auto;margin-top:10px;}.term-row {display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:12px 4px;cursor:pointer;}.term-row strong {display:block;}.term-row span {font-size:12px;color:var(--muted);}.term-actions {display:flex;gap:10px;margin-top:14px;}.term-actions button {flex:1;}.candidate {color:#f0c87b!important;}#glossaryMessage {min-height:24px;color:var(--green);font-size:13px;}
+    .field input,.search {font:inherit;width:100%;background:#111723;border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:9px;}button:focus-visible,select:focus-visible,input:focus-visible {outline:2px solid var(--accent-2);outline-offset:3px;}
+    @media(max-width:900px) {.workspace {grid-template-columns:minmax(0,1fr) 240px;}.transcript-panel {display:grid;}.panel-head {padding:20px;}.transcript-list {padding:0 20px 24px;}}
+    @media(max-width:720px) {.workspace {grid-template-columns:1fr;}.sidebar {display:none;}.status,.brand .divider,.meeting-meta {display:none;}.topbar {padding:0 12px;}.top-actions {gap:6px;}.top-actions .ghost-btn {padding:7px;font-size:12px;}.glossary-grid {grid-template-columns:1fr;}.terms-list {max-height:25vh;}.segment-translation {font-size:19px;}}
+    .revision-audit {color:var(--muted);font-size:12px;margin-top:10px;}.revision-audit div {padding:12px;background:#171c29;max-height:220px;overflow:auto;}.segment .ghost-btn {font-size:11px;margin-top:10px;}.evidence-change {white-space:pre-wrap;padding:12px;border:1px solid var(--line);border-radius:10px;margin-top:10px;}.field textarea {font:inherit;min-height:140px;padding:12px;color:var(--text);background:#111723;border:1px solid var(--line);border-radius:10px;resize:vertical;}#evidenceStatus {white-space:pre-wrap;font-size:13px;color:var(--accent-2);}.evidence-actions {display:flex;gap:10px;flex-wrap:wrap;}.photo-input {margin:12px 0;}.photo-input input {max-width:100%;}#evidenceResults {max-height:35vh;overflow:auto;}
+    .workspace {grid-template-columns:minmax(0,1.85fr) minmax(340px,1fr);}
+    .summary-panel {min-height:0;display:flex;flex-direction:column;border-left:1px solid var(--line);background:#121722;}
+    .summary-panel .panel-head {padding:24px 22px 12px;}.summary-panel h2 {margin:0;}
+    .summary-tools {padding:0 22px 12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12px;color:var(--muted);}
+    .summary-tools select {background:#1c2231;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:5px;}
+    #summaryStatus {padding:0 22px 12px;color:var(--muted);font-size:12px;}
+    #summaryList {overflow:auto;flex:1;min-height:0;padding:0 20px 28px;}
+    .summary-card {padding:20px 0;border-top:1px solid var(--line);overflow-wrap:anywhere;}
+    .summary-card h3 {font-size:19px;margin:10px 0;}.summary-card h4 {font-size:12px;color:var(--accent-2);margin:18px 0 6px;}
+    .summary-card ul {padding-left:20px;margin:0 0 12px;}.summary-card li {margin:7px 0;line-height:1.7;}
+    .summary-card .ghost-btn {font-size:12px;margin:6px 6px 0 0;}.summary-links {margin:12px 0;}
+    .summary-card details {font-size:12px;color:var(--muted);margin-top:12px;}.summary-card details p {white-space:pre-wrap;max-height:160px;overflow:auto;}
+    #summaryCorrectionStatus {white-space:pre-wrap;color:var(--accent-2);}#summarySuggestions {max-height:32vh;overflow:auto;}
+    #settingsDialog section {padding:14px 0;border-bottom:1px solid var(--line);}
+    #evidenceDialog>details {display:none;}#evidenceDialog .small {line-height:1.8;}
+    @media(max-width:850px){.workspace {grid-template-columns:minmax(0,1.3fr) minmax(290px,1fr);}.panel-head {padding:18px;}.topbar .meeting-meta {display:none;}}
+    @media(max-width:650px){.app {grid-template-rows:auto minmax(0,1fr) 80px;}.topbar {min-height:60px;flex-wrap:wrap;padding:10px;gap:8px;}.workspace {grid-template-columns:1fr;grid-template-rows:minmax(220px,1.2fr) minmax(180px,1fr);}.summary-panel {border-left:0;border-top:1px solid var(--line);}.summary-panel .panel-head {padding:12px 18px 4px;}.summary-tools {padding:0 18px 5px;}#summaryStatus {padding-bottom:6px;}.summary-card {padding:12px 0;}.brand .divider {display:none;}}
+  </style>
+  <style>
+    /* Full-width original and translated conversation stream. */
+    .transcript-panel {grid-template-rows:auto auto minmax(0,1fr);}
+    .conversation-tools {display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:0 36px 12px;color:var(--muted);font-size:12px;border-bottom:1px solid var(--line);}
+    .conversation-tools label {white-space:nowrap;cursor:pointer;}
+    .conversation-tools input {accent-color:var(--accent);vertical-align:middle;}
+    .transcript-list {min-height:0;overscroll-behavior:contain;}
+    .segment {display:block;padding:12px 0;}
+    .segment-body {min-width:0;}
+    .segment-meta {margin-bottom:5px;gap:10px;font-size:11px;justify-content:flex-start;align-items:center;min-height:20px;}
+    .segment-meta span:empty {display:none;}
+    .segment-meta time {white-space:nowrap;}
+    .segment-edit {margin-left:auto;border:0;background:none;color:var(--muted);font:inherit;cursor:pointer;padding:2px 6px;}
+    .segment-edit:hover,.segment-edit:focus-visible {color:var(--accent-2);background:#ffffff0a;}
+    .segment-source {margin:0;color:#aeb8c7;font-size:14px;line-height:1.5;}
+    .segment-translation {font-size:18px;line-height:1.55;margin-top:5px;}
+    .segment-error {font-size:12px;line-height:1.5;color:#efad87;}
+    @media(max-width:900px){.conversation-tools {padding:0 20px 12px;}}
+    @media(max-width:650px){.conversation-tools {padding:0 18px 8px;font-size:11px;gap:8px;}.transcript-list {padding:0 18px 24px;}.segment {padding:10px 0;}.segment-source {font-size:13px;}.segment-translation {font-size:17px;}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15V9m4 9V6m4 15V3m4 15V6m4 9V9"/></svg></span>
+        <span>LiveBridge</span><span class="divider"></span>
+        <span class="meeting-meta"><span class="meeting-title">研究室会议</span><span id="meetingTime">00:00</span></span>
+      </div>
+      <div class="top-actions">
+        <button class="ghost-btn" id="restartBtn" type="button" hidden>新会议</button>
+        <button class="ghost-btn" id="glossaryBtn" type="button">专题词库</button>
+        <button class="ghost-btn" id="evidenceBtn" type="button">发言纠错</button>
+        <button class="ghost-btn" id="settingsBtn" type="button">采音状态</button>
+        <div class="status" id="status"><span class="status-dot"></span><span id="statusText">尚未连接</span></div>
+        <button class="ghost-btn" id="downloadBtn" type="button">导出记录</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="transcript-panel" aria-label="实时双语翻译">
+        <div class="panel-head"><div><h2>实时对话</h2><p id="mainDiagnostic" role="status">日语 / 英语自动识别 · 原文与译文逐段显示</p></div><button class="ghost-btn" id="clearBtn" type="button">清空显示</button></div>
+        <div class="conversation-tools"><label><input type="checkbox" id="followTranscript" checked> 跟随最新</label></div>
+        <div class="transcript-list" id="transcriptList" role="log" aria-label="双语会议记录"><div class="empty-state" id="emptyState">等待会议开始<br>不预选发言语言。日语、英语和混合发言均保留原文。</div></div>
+      </section>
+      <aside class="summary-panel" aria-label="分段总结">
+        <div class="panel-head"><div><h2>讨论总结</h2><p>每分钟更新草稿 · 与实时翻译独立</p></div><button class="ghost-btn" id="summaryNow">现在总结</button></div>
+        <div class="summary-tools"><label for="summaryPeriod">分段周期</label><select id="summaryPeriod"><option value="5">5 分钟</option><option value="1">1 分钟</option></select><label><input id="followSummary" type="checkbox" checked>跟随新总结</label></div>
+        <div id="summaryStatus" role="status">等待第一分钟的发言</div><div id="summaryList"><p class="small">讨论内容、结论与待确认事项会出现在这里。可对整段添加注解、照片或文件。</p></div>
+      </aside>
+    </main>
+
+    <dialog id="settingsDialog"><div class="dialog-head"><h2>采音与会议状态</h2><button class="ghost-btn" id="closeSettings">关闭</button></div>
+        <section><h2>会议专题</h2><div class="topic-title" id="topicLabel">室内定位</div><p>已确认术语参与识别与翻译。新缩写和片假名进入候选区，确认后再使用。</p><button class="ghost-btn" id="manageTermsBtn">管理术语 →</button></section>
+        <section id="localParticipant"><h2>采音与处理</h2><div id="inputLabel" class="small">本机麦克风</div><div class="input-status"><span class="mic-meter" aria-label="麦克风音量"><i id="micLevel"></i></span><span id="micPercent" class="small">0%</span></div><div id="captureStats" class="small"></div><div id="processingLabel" class="small"></div><p id="inputQuality" class="small" role="status">尚未检查输入电平</p><div id="diagnostic" class="diagnostic" role="status">等待连接</div><div id="pipelineStats" class="small"></div></section>
+    </dialog>
+
+    <footer class="controlbar">
+      <div class="target-pill"><strong>日英自动识别</strong><span>→</span><strong id="targetLabel">中文</strong></div>
+      <div class="controls">
+        <button class="control" id="micBtn" aria-label="麦克风" type="button" aria-disabled="true" aria-pressed="true"><span class="circle"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg></span><span class="label">麦克风</span></button>
+        <button class="control" id="audioBtn" aria-label="朗读译文" type="button" aria-disabled="true" aria-pressed="false" title="使用浏览器语音朗读中文，建议佩戴耳机"><span class="circle"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 9a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12"/></svg></span><span class="label">朗读译文</span></button>
+        <button class="control end" id="endBtn" aria-label="结束会议" type="button" aria-disabled="true"><span class="circle"><svg viewBox="0 0 24 24"><path d="M5 12.5a11 11 0 0 1 14 0M6 11l-2 4 4 2 2-4m8-2 2 4-4 2-2-4"/></svg></span><span class="label">结束</span></button>
+      </div>
+    </footer>
+  </div>
+
+  <div class="prejoin" id="prejoin">
+    <div class="join-card">
+      <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15V9m4 9V6m4 15V3m4 15V6m4 9V9"/></svg></div>
+      <h1>开始会议翻译</h1>
+      <p class="lead">以日语理解为主，英语提供完整记录与上下文。自动识别日英切换，默认翻译为中文。</p>
+      <div class="error-box" id="errorBox"></div>
+      <div class="field"><label for="topicSelect">会议专题 / 独立词库</label><select id="topicSelect"><option value="indoor">室内定位</option><option value="animals">动物</option><option value="biology">生物实验</option><option value="har">HAR · 人体活动识别</option></select></div>
+      <div class="field"><label for="inputDevice">麦克风</label><select id="inputDevice"><option value="">系统默认麦克风</option></select></div>
+      <div class="field"><label for="audioMode">采音处理</label><select id="audioMode"><option value="room">会议室：轻度去低频（80 Hz，不丢弱声）</option><option value="raw">原始对照：不额外滤波</option><option value="browser">浏览器降噪：嘈杂环境可试，可能削弱远处声音</option><option value="adaptive">实验：去低频 + 底噪自适应分段</option></select><small class="small">不叠加强力降噪。多人同时说话无法可靠分离；电平检测不代表识别准确。</small></div>
+      <div class="field"><label for="targetLanguage">翻译为</label><select id="targetLanguage"><option value="zh">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="es">Español</option><option value="pt">Português</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="ru">Русский</option><option value="hi">हिन्दी</option><option value="id">Bahasa Indonesia</option><option value="vi">Tiếng Việt</option><option value="it">Italiano</option></select></div>
+      <div class="field"><label for="summaryPeriodJoin">总结分段周期（会中每分钟更新）</label><select id="summaryPeriodJoin"><option value="5">每 5 分钟一段（推荐）</option><option value="1">每 1 分钟一段</option></select></div>
+      <button class="join-btn" id="joinBtn" type="button">允许麦克风并开始</button>
+      <button class="ghost-btn" id="previewBtn" type="button" style="width:100%;margin-top:10px">先查看界面与词库（不录音）</button>
+      <details style="margin-top:16px;color:var(--muted);font-size:12px"><summary>模块自检</summary><p>使用已知的日英室内定位音频验证识别与翻译，不打开麦克风。</p><button class="ghost-btn" id="sampleBtn" type="button">运行日英测试音频</button></details>
+      <div class="privacy"><span>◇</span><span>音频、翻译与总结由本机后端发送给 OpenAI 处理，API Key 不进入网页。词库、口语译法、修订及命中词附近的短文本在本地持久保存；完整会议记录、总结和注解仅在页面内存，刷新前请导出。正常会议不保存原始录音。总结、文件分析与自检均产生 API 用量。</span></div>
+    </div>
+  </div>
+  <dialog id="glossaryDialog"><div class="dialog-head"><h2>专题词库</h2><button class="ghost-btn" id="closeGlossary">关闭</button></div><div class="small">四套数据库独立保存。候选词需确认才用于提示；修改用于之后的翻译，识别词表在下一场会议生效。</div><div class="glossary-grid"><div><div class="field"><label for="glossaryTopic">选择词库</label><select id="glossaryTopic"><option value="indoor">室内定位</option><option value="animals">动物</option><option value="biology">生物实验</option><option value="har">HAR</option></select></div><input class="search" id="termSearch" placeholder="搜索英文、日文、中文或候选词" aria-label="搜索词表"><p class="small" id="glossaryStorage" role="status"></p><div class="terms-list" id="termsList"></div><div class="term-actions"><button class="ghost-btn" id="exportTerms">导出 JSON</button><button class="ghost-btn" id="importTerms">导入 JSON</button><input type="file" id="termsFile" accept="application/json,.json" hidden></div></div><form id="termForm"><div class="field"><label for="termEn">术语 / 英文 *</label><input id="termEn" required maxlength="120"></div><div class="field"><label for="termJa">日语</label><input id="termJa" maxlength="500"></div><div class="field"><label for="termZh">中文译法</label><input id="termZh" maxlength="500"></div><div class="field"><label for="termAliases">别名 / 常见识别写法（逗号分隔）</label><input id="termAliases" maxlength="1000"></div><div class="field"><label for="termNotes">术语备注</label><input id="termNotes" maxlength="500"></div><div class="field"><label for="termStatus">状态</label><select id="termStatus"><option value="confirmed">已确认，参与提示</option><option value="candidate">候选，不参与提示</option><option value="archived">归档，不参与提示</option></select></div><div class="term-actions"><button class="join-btn" type="submit">保存术语</button><button class="ghost-btn" id="newTerm" type="button">新增</button></div></form></div><p id="glossaryMessage" role="status"></p></dialog>
+
+  <dialog id="evidenceDialog"><div class="dialog-head"><h2>按我的理解纠正发言</h2><button class="ghost-btn" id="closeEvidence">关闭</button></div>
+    <p class="small">输入你听懂的大致意思，不需要还原日语原句。根据你的理解修订译文，并标注依据；原始识别不改写，可查看历史和撤销。对整段讨论补照片或文件，请用右侧总结的纠正入口。</p>
+    <div class="field"><label for="evidenceSegment">核对哪一段</label><select id="evidenceSegment"><option value="">最近 6 段</option></select></div>
+    <div class="field"><label for="evidenceEnd">连续多句：结束于（最多 6 段）</label><select id="evidenceEnd"><option value="">只核对选中段 / 最近 6 段</option></select></div>
+    <div class="field"><label for="evidenceKind">你提供的依据</label><select id="evidenceKind"><option value="note">我听懂的大致意思</option><option value="exact_quote">高级：我确认完整原话（只针对明确的一段）</option></select></div>
+    <div class="field"><label for="evidenceText">我对这段话的理解</label><textarea id="evidenceText" maxlength="10000" placeholder="例如：他是在说用 BLE 信标估计位置，比较的是定位误差，不是速度。"></textarea></div>
+    <label class="check"><input type="checkbox" id="autoRevision" checked><span>应用有依据的译文修订，保留原始识别和修订依据；可撤销。</span></label>
+    <div class="evidence-actions"><button class="ghost-btn" id="reviewEvidence">根据我的理解纠正</button><button class="ghost-btn" id="clearEvidence">清除当前参考</button></div><p id="evidenceStatus" role="status"></p><div id="evidenceResults"></div>
+  </dialog>
+  <dialog id="summaryDialog"><div class="dialog-head"><h2>纠正整段总结 · <span id="summaryRange"></span></h2><button class="ghost-btn" id="closeSummary">关闭</button></div>
+    <p class="small">写下你对这一段的理解，或上传参考材料。材料内容会与发言区分；只修改右侧总结，相关字幕需要单独确认。原版本保留在修订历史中。</p>
+    <div class="field"><label for="summaryNote">这一段的注解 / 大致理解</label><textarea id="summaryNote" maxlength="10000" placeholder="例如：这一段是在讨论不同房间的定位误差，不是在讨论信号强度。"></textarea></div>
+    <div class="field"><label for="summaryFile">照片、slides 或其他参考文件（可选，6 MB 以内）</label><input id="summaryFile" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.HEIC,.HEIF,.pdf,.pptx,.docx,.txt,.md"></div>
+    <p class="small">支持 JPEG、PNG、WebP、HEIC / HEIF、PDF、PPTX、DOCX、TXT、MD。HEIC 在本机内存转为 JPEG、移除原图元数据后分析；多图仅分析主图。Office 文件仅提取文本，图表请导出为 PDF。每次可追加一份材料；不会自动拍照。</p>
+    <label class="check"><input id="summaryFileConsent" type="checkbox"><span>允许将这份主动选择的材料发送给 OpenAI 分析；文件不在本机服务端落盘。</span></label>
+    <button class="ghost-btn" id="correctSummary">核对并修订这段总结</button><p id="summaryCorrectionStatus" role="status"></p><div id="summarySuggestions"></div>
+  </dialog>
+<script type="module" src="/static/meeting-ui.js?v=20261009-memory"></script>
+</body>
+</html>
